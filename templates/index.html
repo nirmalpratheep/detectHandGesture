@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Hand Gesture Controller</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 2rem; padding: 2rem; min-height: 100vh;
+      background: #0f0f1a; font-family: 'Segoe UI', sans-serif; color: #fff;
+    }
+
+    /* ── Layout ── */
+    #top   { display: flex; gap: 2rem; align-items: flex-start; justify-content: center; }
+    #left  { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+    #right { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5rem; }
+    #video-wrap { position: relative; }
+    video  { border-radius: 12px; display: block; transform: scaleX(-1); }
+    canvas { position: absolute; top: 0; left: 0; transform: scaleX(-1); }
+    #cam-label { font-size: 0.8rem; color: #555; }
+
+    /* ── Command circle ── */
+    h1 { font-size: 1.2rem; color: #888; letter-spacing: 2px; text-transform: uppercase; }
+    #command-box {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; width: 300px; height: 300px;
+      border-radius: 50%; border: 4px solid #333;
+      background: #1a1a2e; transition: all 0.3s ease;
+    }
+    #icon  { font-size: 5rem; margin-bottom: 0.8rem; }
+    #label { font-size: 1.8rem; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; }
+
+    .state-stop  { border-color: #e74c3c; box-shadow: 0 0 40px #e74c3c55; }
+    .state-stop  #label { color: #e74c3c; }
+    .state-go    { border-color: #2ecc71; box-shadow: 0 0 40px #2ecc7155; }
+    .state-go    #label { color: #2ecc71; }
+    .state-left  { border-color: #3498db; box-shadow: 0 0 40px #3498db55; }
+    .state-left  #label { color: #3498db; }
+    .state-right { border-color: #9b59b6; box-shadow: 0 0 40px #9b59b655; }
+    .state-right #label { color: #9b59b6; }
+    .state-none  { border-color: #333; box-shadow: none; }
+    .state-none  #label { color: #555; }
+
+    /* ── Confidence bar ── */
+    #conf-wrap   { width: 180px; margin-top: 0.8rem; }
+    #conf-bar-bg { background: #222; border-radius: 4px; height: 8px; overflow: hidden; }
+    #conf-bar    { height: 8px; width: 0%; background: #555; border-radius: 4px; transition: width 0.15s ease; }
+    #conf-text   { font-size: 0.75rem; color: #666; text-align: right; margin-top: 3px; }
+
+    /* ── Stats ── */
+    #stats    { display: flex; gap: 1.5rem; }
+    .stat     { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .stat-val { font-size: 1.1rem; font-weight: 700; color: #aaa; }
+    .stat-key { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px; color: #555; }
+    #status   { font-size: 0.8rem; color: #555; }
+
+    /* ── Machine info ── */
+    #machine    {
+      background: #1a1a2e; border: 2px solid #2a2a40; border-radius: 14px;
+      padding: 1rem 1.2rem; min-width: 180px;
+      display: flex; flex-direction: column; gap: 0.6rem;
+    }
+    #machine h3 { font-size: 0.75rem; color: #555; letter-spacing: 2px; text-transform: uppercase; }
+    .mrow { display: flex; flex-direction: column; gap: 1px; }
+    .mkey { font-size: 0.65rem; color: #555; text-transform: uppercase; letter-spacing: 1px; }
+    .mval { font-size: 0.82rem; color: #ccc; word-break: break-word; }
+
+    /* ── Gesture guide ── */
+    #guide        { width: 100%; max-width: 940px; }
+    #guide h2     { font-size: 0.9rem; color: #555; letter-spacing: 2px; text-transform: uppercase; text-align: center; margin-bottom: 1.2rem; }
+    #guide-cards  { display: flex; gap: 1.2rem; justify-content: center; flex-wrap: wrap; }
+    .gcard {
+      background: #1a1a2e; border: 2px solid #2a2a40; border-radius: 16px;
+      padding: 1.2rem 1.4rem; display: flex; flex-direction: column;
+      align-items: center; gap: 0.7rem; width: 200px; transition: border-color 0.2s;
+    }
+    .gcard:hover { border-color: #555; }
+    .ref-icon { font-size: 4.5rem; line-height: 1; }
+    .ctitle   { font-size: 1.1rem; font-weight: 700; letter-spacing: 2px; }
+    .cdesc    { font-size: 0.78rem; color: #777; text-align: center; line-height: 1.5; }
+    .stop-card  { border-color: #e74c3c33; } .stop-card  .ctitle { color: #e74c3c; }
+    .go-card    { border-color: #2ecc7133; } .go-card    .ctitle { color: #2ecc71; }
+    .left-card  { border-color: #3498db33; } .left-card  .ctitle { color: #3498db; }
+    .right-card { border-color: #9b59b633; } .right-card .ctitle { color: #9b59b6; }
+  </style>
+</head>
+<body>
+
+  <div id="top">
+
+    <!-- Camera feed -->
+    <div id="left">
+      <div id="video-wrap">
+        <video id="video" width="480" height="360" autoplay playsinline muted></video>
+        <canvas id="canvas" width="480" height="360"></canvas>
+      </div>
+      <button id="start-btn" onclick="startCamera()"
+        style="padding:10px 24px;font-size:1rem;cursor:pointer;border-radius:8px;border:none;background:#2ecc71;color:#000;font-weight:700;">
+        Start Camera
+      </button>
+      <div id="cam-label">Live camera feed</div>
+    </div>
+
+    <!-- Gesture display -->
+    <div id="right">
+      <h1>Hand Gesture Controller</h1>
+      <div id="command-box" class="state-none">
+        <div id="icon">✋</div>
+        <div id="label">Waiting...</div>
+      </div>
+      <div id="conf-wrap">
+        <div id="conf-bar-bg"><div id="conf-bar"></div></div>
+        <div id="conf-text">—</div>
+      </div>
+      <div id="stats">
+        <div class="stat"><div class="stat-val" id="stat-latency">—</div><div class="stat-key">Latency ms</div></div>
+        <div class="stat"><div class="stat-val" id="stat-infer">—</div><div class="stat-key">Infer ms</div></div>
+        <div class="stat"><div class="stat-val" id="stat-mem">—</div><div class="stat-key">Mem MB</div></div>
+      </div>
+      <div id="status">Click Start Camera</div>
+    </div>
+
+    <!-- Machine info -->
+    <div id="machine">
+      <h3>Machine</h3>
+      <div class="mrow"><div class="mkey">OS</div><div class="mval" id="m-os">—</div></div>
+      <div class="mrow"><div class="mkey">CPU</div><div class="mval" id="m-cpu">—</div></div>
+      <div class="mrow"><div class="mkey">Cores</div><div class="mval" id="m-cores">—</div></div>
+      <div class="mrow"><div class="mkey">RAM</div><div class="mval" id="m-ram">—</div></div>
+      <div class="mrow"><div class="mkey">Python</div><div class="mval" id="m-py">—</div></div>
+    </div>
+
+  </div>
+
+  <!-- Gesture reference -->
+  <div id="guide">
+    <h2>Gesture Reference</h2>
+    <div id="guide-cards">
+      <div class="gcard stop-card">
+        <div class="ref-icon">✋</div>
+        <div class="ctitle">✋ STOP</div>
+        <div class="cdesc">Open palm — all 4 fingers fully extended upward</div>
+      </div>
+      <div class="gcard go-card">
+        <div class="ref-icon">✊</div>
+        <div class="ctitle">✊ GO</div>
+        <div class="cdesc">Fist — all fingers curled closed</div>
+      </div>
+      <div class="gcard left-card">
+        <div class="ref-icon">👈</div>
+        <div class="ctitle">👈 LEFT</div>
+        <div class="cdesc">Only index finger pointing horizontally left</div>
+      </div>
+      <div class="gcard right-card">
+        <div class="ref-icon">👉</div>
+        <div class="ctitle">👉 RIGHT</div>
+        <div class="cdesc">Only index finger pointing horizontally right</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const video    = document.getElementById('video');
+    const canvas   = document.getElementById('canvas');
+    const ctx      = canvas.getContext('2d');
+    const box      = document.getElementById('command-box');
+    const icon     = document.getElementById('icon');
+    const label    = document.getElementById('label');
+    const confBar  = document.getElementById('conf-bar');
+    const confText = document.getElementById('conf-text');
+    const status   = document.getElementById('status');
+
+    const GESTURES = {
+      'STOP':       { icon: '✋', text: 'STOP',       cls: 'state-stop'  },
+      'GO':         { icon: '✊', text: 'GO',         cls: 'state-go'    },
+      'TURN LEFT':  { icon: '👈', text: 'LEFT',       cls: 'state-left'  },
+      'TURN RIGHT': { icon: '👉', text: 'RIGHT',      cls: 'state-right' },
+      'none':       { icon: '✋', text: 'Waiting...', cls: 'state-none'  },
+    };
+
+    const CONNECTIONS = [
+      [0,1],[1,2],[2,3],[3,4],
+      [0,5],[5,6],[6,7],[7,8],
+      [5,9],[9,10],[10,11],[11,12],
+      [9,13],[13,14],[14,15],[15,16],
+      [13,17],[17,18],[18,19],[19,20],
+      [0,17],
+    ];
+
+    let ws = null;
+    let frameSentAt = 0;
+    const tmp    = document.createElement('canvas');
+    const tmpCtx = tmp.getContext('2d');
+
+    // Load machine info once
+    fetch('/info').then(r => r.json()).then(d => {
+      document.getElementById('m-os').textContent    = d.os;
+      document.getElementById('m-cpu').textContent   = d.cpu || 'N/A';
+      document.getElementById('m-cores').textContent = d.cores + ' physical';
+      document.getElementById('m-ram').textContent   = d.ram_gb + ' GB';
+      document.getElementById('m-py').textContent    = d.python;
+    });
+
+    function updateDisplay(gesture, confidence) {
+      const g = GESTURES[gesture] || GESTURES['none'];
+      box.className     = g.cls;
+      icon.textContent  = g.icon;
+      label.textContent = g.text;
+      const pct = Math.round(confidence * 100);
+      confBar.style.width  = gesture === 'none' ? '0%' : pct + '%';
+      confText.textContent = gesture === 'none' ? '—' : pct + '% confidence';
+    }
+
+    function drawLandmarks(landmarks) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!landmarks.length) return;
+      const W = canvas.width, H = canvas.height;
+      ctx.strokeStyle = '#00C850';
+      ctx.lineWidth   = 2;
+      for (const [a, b] of CONNECTIONS) {
+        ctx.beginPath();
+        ctx.moveTo(landmarks[a].x * W, landmarks[a].y * H);
+        ctx.lineTo(landmarks[b].x * W, landmarks[b].y * H);
+        ctx.stroke();
+      }
+      for (const p of landmarks) {
+        ctx.beginPath();
+        ctx.arc(p.x * W, p.y * H, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+      }
+    }
+
+    function sendFrame() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      tmp.width  = video.videoWidth  || 480;
+      tmp.height = video.videoHeight || 360;
+      tmpCtx.drawImage(video, 0, 0, tmp.width, tmp.height);
+      tmp.toBlob(blob => {
+        blob.arrayBuffer().then(buf => {
+          frameSentAt = performance.now();
+          ws.send(JSON.stringify({ frame: btoa(String.fromCharCode(...new Uint8Array(buf))) }));
+        });
+      }, 'image/jpeg', 0.7);
+    }
+
+    window.startCamera = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        status.textContent = '⚠️ Open at http://localhost:8000 — camera blocked on non-localhost HTTP.';
+        return;
+      }
+      document.getElementById('start-btn').style.display = 'none';
+      try {
+        video.srcObject = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        await new Promise(r => video.addEventListener('loadeddata', r, { once: true }));
+      } catch (err) {
+        status.textContent = 'Camera error: ' + err.message;
+        document.getElementById('start-btn').style.display = 'inline-block';
+        return;
+      }
+
+      ws = new WebSocket(`ws://${location.host}/ws`);
+      ws.onopen    = () => { status.textContent = 'Connected — show your hand'; setInterval(sendFrame, 80); };
+      ws.onmessage = e => {
+        const { command, confidence, landmarks, infer_ms, mem_mb } = JSON.parse(e.data);
+        const latency = Math.round(performance.now() - frameSentAt);
+        updateDisplay(command, confidence);
+        drawLandmarks(landmarks);
+        document.getElementById('stat-latency').textContent = latency;
+        document.getElementById('stat-infer').textContent   = infer_ms ?? '—';
+        document.getElementById('stat-mem').textContent     = mem_mb   ?? '—';
+      };
+      ws.onclose = () => { status.textContent = 'Disconnected'; };
+    };
+  </script>
+</body>
+</html>
