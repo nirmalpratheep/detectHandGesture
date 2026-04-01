@@ -149,7 +149,7 @@ detectHandGesture/
 ## Setup
 
 ```bash
-pip install fastapi "uvicorn[standard]" mediapipe opencv-python numpy psutil
-python main.py
+uv sync
+uv run main.py
 # Open http://localhost:8000
 ```
