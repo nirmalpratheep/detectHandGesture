@@ -2,7 +2,7 @@
 
 Real-time hand gesture recognition over WebSocket — browser streams webcam frames to Python, Python classifies and smooths, browser displays the result.
 
-<video src="demo/demo.mp4" controls width="100%"></video>
+![demo](demo/demo.gif)
 
 ---
 
