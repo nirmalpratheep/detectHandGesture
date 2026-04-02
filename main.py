@@ -43,7 +43,7 @@ def classify(lm) -> tuple[str, float]:
     dx, dy   = lm[8].x - lm[5].x, lm[8].y - lm[5].y
     finger_len = math.hypot(dx, dy)
     if finger_len > 0.08 and abs(dx) > abs(dy) * 0.8:
-        return ("TURN RIGHT" if dx > 0 else "TURN LEFT"), min(1.0, abs(dx) / finger_len)
+        return ("TURN LEFT" if dx > 0 else "TURN RIGHT"), min(1.0, abs(dx) / finger_len)
 
     return "none", 0.0
 
